@@ -21,10 +21,10 @@ import           Pos.Block.Core                   (Block, BlockHeader)
 import           Pos.Block.Slog                   (HasSlogContext (..),
                                                    HasSlogGState (..))
 import           Pos.Block.Types                  (Undo)
-import           Pos.Configuration                (HasNodeConfiguration)
 import           Pos.Context                      (HasNodeContext (..))
 import           Pos.Core                         (HasConfiguration, HasPrimaryKey (..),
                                                    IsHeader)
+import           Pos.Crypto                       (PassPhrase)
 import           Pos.DB                           (MonadGState (..))
 import           Pos.DB.Block                     (dbGetBlockDefault,
                                                    dbGetBlockSscDefault,
@@ -41,6 +41,7 @@ import           Pos.DB.Rocks                     (dbDeleteDefault, dbGetDefault
                                                    dbWriteBatchDefault)
 import           Pos.Recovery                     ()
 
+import           Pos.Client.Txp.Addresses         (MonadAddresses (..))
 import           Pos.Client.Txp.Balances          (MonadBalances (..), getBalanceDefault,
                                                    getOwnUtxosDefault)
 import           Pos.Client.Txp.History           (MonadTxHistory (..),
@@ -80,12 +81,12 @@ import           Pos.Wallet.Redirect              (MonadBlockchainInfo (..),
                                                    networkChainDifficultyWebWallet,
                                                    waitForUpdateWebWallet)
 import           Pos.Wallet.SscType               (WalletSscType)
+import           Pos.Wallet.Web.Account           (AccountMode)
+import           Pos.Wallet.Web.ClientTypes       (AccountId)
 import           Pos.Wallet.Web.Sockets.ConnSet   (ConnectionsVar)
 import           Pos.Wallet.Web.State.State       (WalletState)
 import           Pos.Wallet.Web.Tracking          (MonadBListener (..), onApplyTracking,
                                                    onRollbackTracking)
-import           Pos.WorkMode                     (RealModeContext (..))
-
 
 data WalletWebModeContext = WalletWebModeContext
     { wwmcWalletState     :: !WalletState
@@ -153,14 +154,16 @@ type WalletWebMode = Mtl.ReaderT WalletWebModeContext Production
 
 -- This constraint used to be abstract (a list of classes), but specifying a
 -- concrete monad is quite likely more performant.
-type MonadWalletWebMode m =
-    ( HasConfiguration
-    , HasNodeConfiguration
-    , HasInfraConfiguration
-    , HasGtConfiguration
-    , HasUpdateConfiguration
-    , HasCompileInfo
-    , m ~ WalletWebMode
+type MonadWalletWebMode ctx m =
+    ( WorkMode WalletSscType ctx m
+    , AccountMode ctx m
+    , MonadBlockchainInfo m
+    , MonadBalances m
+    , MonadUpdates m
+    , MonadTxHistory WalletSscType m
+    , MonadAddresses m
+    , AddrData m ~ (AccountId, PassPhrase)
+    , HasLens ConnectionsVar ctx ConnectionsVar
     )
 
 instance (HasConfiguration, HasInfraConfiguration, MonadSlotsData ctx WalletWebMode)
