@@ -6,6 +6,7 @@
 module Pos.Wallet.Web.Methods.Payment
        ( newPayment
        , getTxFee
+       , getNewAddressWebWallet
        ) where
 
 import           Universum
@@ -22,7 +23,7 @@ import           Pos.Client.Txp.History           (TxHistoryEntry (..))
 import           Pos.Client.Txp.Util              (computeTxFee, runTxCreator)
 import           Pos.Communication                (SendActions (..), prepareMTx)
 import           Pos.Configuration                (HasNodeConfiguration)
-import           Pos.Core                         (Coin, HasConfiguration,
+import           Pos.Core                         (Address, Coin, HasConfiguration,
                                                    getCurrentTimestamp)
 import           Pos.Crypto                       (PassPhrase, hash, withSafeSigners)
 import           Pos.Infra.Configuration          (HasInfraConfiguration)
@@ -128,9 +129,12 @@ instance
     => MonadAddresses Pos.Wallet.Web.Mode.WalletWebMode
   where
     type AddrData Pos.Wallet.Web.Mode.WalletWebMode = (AccountId, PassPhrase)
-    getNewAddress (accId, passphrase) = do
-        clientAddress <- L.newAddress RandomSeed passphrase accId
-        decodeCTypeOrFail (cadId clientAddress)
+    getNewAddress = getNewAddressWebWallet
+
+getNewAddressWebWallet :: MonadWalletWebMode ctx m => (AccountId, PassPhrase) -> m Address
+getNewAddressWebWallet (accId, passphrase) = do
+    clientAddress <- L.newAddress RandomSeed passphrase accId
+    decodeCTypeOrFail (cadId clientAddress)
 
 sendMoney
     :: MonadWalletWebMode ctx m
