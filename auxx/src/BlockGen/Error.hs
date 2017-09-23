@@ -1,6 +1,6 @@
 -- | All errors possible in block-gen.
 
-module Error
+module BlockGen.Error
        ( TBlockGenError (..)
        ) where
 

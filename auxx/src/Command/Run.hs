@@ -32,6 +32,7 @@ import           Pos.Launcher.Configuration (HasConfigurations)
 import           Pos.Util.UserSecret        (readUserSecret, usKeys)
 import           Pos.Wallet                 (addSecretKey, getBalance, getSecretKeys)
 
+import           BlockGen.Logic             (generateBlocks)
 import qualified Command.Rollback           as Rollback
 import qualified Command.Tx                 as Tx
 import           Command.Types              (Command (..))
@@ -160,6 +161,8 @@ runCmd _ (AddrDistr pk asd) = do
     addr = makeAddress (PubKeyASD pk) (AddrAttributes Nothing asd)
 runCmd _ (Rollback rollbackNum rollbackDumpPath) =
     Rollback.rollbackAndDump rollbackNum rollbackDumpPath
+runCmd _ (GenBlocks params) =
+    generateBlocks params
 runCmd sendActions (SendTxsFromFile filePath) =
     Tx.sendTxsFromFile sendActions filePath
 runCmd _ Quit = pure ()

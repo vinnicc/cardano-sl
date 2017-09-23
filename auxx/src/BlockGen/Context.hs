@@ -4,7 +4,7 @@
 
 -- | Initial context satisfying MonadBlockGen.
 
-module Context
+module BlockGen.Context
        ( initTBlockGenMode
        ) where
 

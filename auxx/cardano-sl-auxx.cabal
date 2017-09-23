@@ -25,6 +25,8 @@ executable cardano-auxx
                        Mode
                        Plugin
                        AuxxOptions
+                       BlockGen.Context
+                       BlockGen.Error
 
                        -- TODO: delete these
                        Pos.Auxx
@@ -46,8 +48,10 @@ executable cardano-auxx
                      , cardano-sl-infra
                      , cardano-sl-ssc
                      , cardano-sl-txp
+                     , cardano-sl-lrc
                      , cardano-sl-update
                      , data-default
+                     , directory
                      , dlist
                      , ether
                      , exceptions
@@ -56,6 +60,7 @@ executable cardano-auxx
                      , lens
                      , log-warper
                      , mmorph
+                     , MonadRandom
                      , monad-control
                      , monad-loops
                      , mtl
@@ -73,6 +78,7 @@ executable cardano-auxx
                      , stm-containers
                      , tagged
                      , text
+                     , text-format
                      , time
                      , time-units
                      , transformers
