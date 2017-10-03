@@ -149,7 +149,30 @@ getAccounts
 getAccounts = getAccountsIncludeUnready False
 
 getWallets :: MonadWalletWebMode m => m [CWallet]
-getWallets = getWalletAddresses >>= mapM getWallet
+getWallets = do
+    logNotice "Ololo rollback!!!"
+    printTipDifficulty
+    blundsMaybeEmpty <- modifyBlunds <$>
+        loadBlundsFromTipByDepth @WalletSscType (fromIntegral numToRollback)
+    logInfo $ sformat ("Loaded "%int%" blunds") (length blundsMaybeEmpty)
+    blunds <- maybeThrow (RequestError "Ololo") $ _Wrapped nonEmpty blundsMaybeEmpty
+    rollbackBlocksUnsafe (BypassSecurityCheck True) blunds
+    printTipDifficulty
+
+    getWalletAddresses >>= mapM getWallet
+  where
+    modifyBlunds :: HasGtConfiguration => NewestFirst [] (Blund ssc) -> NewestFirst [] (Blund ssc)
+    modifyBlunds =
+        over _NewestFirst (genericTake numToRollback . skip0thGenesis)
+    skip0thGenesis = filter (not . is0thGenesis)
+    is0thGenesis :: Blund ssc -> Bool
+    is0thGenesis (Left genBlock, _)
+        | genBlock ^. epochIndexL == 0 = True
+    is0thGenesis _ = False
+    printTipDifficulty = do
+        tipDifficulty <- view difficultyL <$> getTipHeader @WalletSscType
+        logInfo $ sformat ("Our tip's difficulty is "%build) tipDifficulty
+    numToRollback = 5
 
 ----------------------------------------------------------------------------
 -- Creators

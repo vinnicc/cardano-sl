@@ -45,7 +45,8 @@ import           Ether.Internal                   (HasLens (..))
 import           Formatting                       (build, sformat, (%))
 import           Serokell.Util                    (enumerate)
 import           System.Wlog                      (HasLoggerName, WithLogger, logError,
-                                                   logInfo, logWarning, modifyLoggerName)
+                                                   logInfo, logNotice, logWarning,
+                                                   modifyLoggerName)
 
 import           Pos.Block.Core                   (BlockHeader, getBlockHeader,
                                                    mainBlockTxPayload)
@@ -455,13 +456,14 @@ applyModifierToWallet wid newTip CAccModifier{..} = do
     WS.setWalletSyncTip wid newTip
 
 rollbackModifierFromWallet
-    :: (WebWalletModeDB ctx m, MonadSlots ctx m)
+    :: (WebWalletModeDB ctx m, MonadSlots ctx m, WithLogger m)
     => CId Wal
     -> HeaderHash
     -> CAccModifier
     -> m ()
-rollbackModifierFromWallet wid newTip CAccModifier{..} = do
+rollbackModifierFromWallet wid newTip cmod@CAccModifier{..} = do
     -- TODO maybe do it as one acid-state transaction.
+    logNotice $ sformat ("Rollbacking in wallet: "%build) cmod
     mapM_ WS.removeWAddress (indexedDeletions camAddresses)
     mapM_ (WS.removeCustomAddress UsedAddr) (MM.deletions camUsed)
     mapM_ (WS.removeCustomAddress ChangeAddr) (MM.deletions camChange)

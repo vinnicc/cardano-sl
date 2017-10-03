@@ -16,7 +16,8 @@ import           Control.Lens                     (to)
 import qualified Data.List.NonEmpty               as NE
 import           Formatting                       (build, sformat, (%))
 import           System.Wlog                      (HasLoggerName (modifyLoggerName),
-                                                   WithLogger)
+                                                   WithLogger, logInfo, logNotice,
+                                                   logWarning)
 
 import           Pos.Block.BListener              (MonadBListener (..))
 import           Pos.Block.Core                   (BlockHeader, blockHeader,
@@ -116,6 +117,7 @@ onRollbackTracking
     )
     => NewestFirst NE (Blund ssc) -> m SomeBatchOp
 onRollbackTracking blunds = setLogger $ do
+    logNotice "BListener rollback"
     let newestFirst = getNewestFirst blunds
         txs = concatMap (reverse . gbTxsWUndo) newestFirst
         newTip = (NE.last newestFirst) ^. prevBlockL
