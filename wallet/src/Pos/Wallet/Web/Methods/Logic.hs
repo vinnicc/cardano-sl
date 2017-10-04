@@ -27,46 +27,59 @@ module Pos.Wallet.Web.Methods.Logic
 
 import           Universum
 
-import qualified Data.HashMap.Strict        as HM
-import           Data.List                  (findIndex, notElem)
-import           Data.Time.Clock.POSIX      (getPOSIXTime)
-import           Formatting                 (build, sformat, (%))
+import           Control.Lens                     (_Wrapped)
+import qualified Data.HashMap.Strict              as HM
+import           Data.List                        (findIndex, notElem)
+import           Data.Time.Clock.POSIX            (getPOSIXTime)
+import           Formatting                       (build, int, sformat, (%))
+import           System.Wlog                      (logInfo, logNotice)
 
-import           Pos.Aeson.ClientTypes      ()
-import           Pos.Aeson.WalletBackup     ()
-import           Pos.Core                   (Coin, sumCoins, unsafeIntegerToCoin)
-import           Pos.Crypto                 (PassPhrase, changeEncPassphrase,
-                                             checkPassMatches, emptyPassphrase)
-import           Pos.Util                   (maybeThrow)
-import qualified Pos.Util.Modifier          as MM
-import           Pos.Util.Servant           (encodeCType)
-import           Pos.Wallet.KeyStorage      (addSecretKey, deleteSecretKey, getSecretKeys)
-import           Pos.Wallet.WalletMode      (getBalance)
-import           Pos.Wallet.Web.Account     (AddrGenSeed, genUniqueAccountAddress,
-                                             genUniqueAccountId, getAddrIdx, getSKById)
-import           Pos.Wallet.Web.ClientTypes (AccountId (..), CAccount (..),
-                                             CAccountInit (..), CAccountMeta (..),
-                                             CAddress (..), CId, CWAddressMeta (..),
-                                             CWallet (..), CWalletMeta (..), Wal,
-                                             addrMetaToAccount, encToCId)
-import           Pos.Wallet.Web.Error       (WalletError (..))
-import           Pos.Wallet.Web.Mode        (MonadWalletWebMode)
-import           Pos.Wallet.Web.State       (AddressLookupMode (Existing),
-                                             CustomAddressType (ChangeAddr, UsedAddr),
-                                             addWAddress, createAccount, createWallet,
-                                             getAccountIds, getAccountMeta,
-                                             getWalletAddresses,
-                                             getWalletMetaIncludeUnready, getWalletPassLU,
-                                             isCustomAddress, removeAccount,
-                                             removeHistoryCache, removeTxMetas,
-                                             removeWallet, setAccountMeta, setWalletMeta,
-                                             setWalletPassLU, setWalletReady)
-import           Pos.Wallet.Web.Tracking    (CAccModifier (..), CachedCAccModifier,
-                                             fixCachedAccModifierFor,
-                                             fixingCachedAccModifier, sortedInsertions)
-import           Pos.Wallet.Web.Util        (decodeCTypeOrFail, getAccountAddrsOrThrow,
-                                             getWalletAccountIds)
-
+import           Pos.Aeson.ClientTypes            ()
+import           Pos.Aeson.WalletBackup           ()
+import           Pos.Block.Logic                  (rollbackBlocksUnsafe)
+import           Pos.Block.Slog                   (BypassSecurityCheck (..))
+import           Pos.Block.Types                  (Blund)
+import           Pos.Core                         (Coin, difficultyL, epochIndexL,
+                                                   sumCoins, unsafeIntegerToCoin)
+import           Pos.Crypto                       (PassPhrase, changeEncPassphrase,
+                                                   checkPassMatches, emptyPassphrase)
+import           Pos.DB.DB                        (getTipHeader, loadBlundsFromTipByDepth)
+import           Pos.Ssc.GodTossing.Configuration (HasGtConfiguration)
+import           Pos.Util                         (maybeThrow)
+import           Pos.Util.Chrono                  (NewestFirst)
+import qualified Pos.Util.Modifier                as MM
+import           Pos.Util.Servant                 (encodeCType)
+import           Pos.Wallet.KeyStorage            (addSecretKey, deleteSecretKey,
+                                                   getSecretKeys)
+import           Pos.Wallet.SscType               (WalletSscType)
+import           Pos.Wallet.WalletMode            (getBalance)
+import           Pos.Wallet.Web.Account           (AddrGenSeed, genUniqueAccountAddress,
+                                                   genUniqueAccountId, getAddrIdx,
+                                                   getSKById)
+import           Pos.Wallet.Web.ClientTypes       (AccountId (..), CAccount (..),
+                                                   CAccountInit (..), CAccountMeta (..),
+                                                   CAddress (..), CId, CWAddressMeta (..),
+                                                   CWallet (..), CWalletMeta (..), Wal,
+                                                   addrMetaToAccount, encToCId)
+import           Pos.Wallet.Web.Error             (WalletError (..))
+import           Pos.Wallet.Web.Mode              (MonadWalletWebMode)
+import           Pos.Wallet.Web.State             (AddressLookupMode (Existing), CustomAddressType (ChangeAddr, UsedAddr),
+                                                   addWAddress, createAccount,
+                                                   createWallet, getAccountIds,
+                                                   getAccountMeta, getWalletAddresses,
+                                                   getWalletMetaIncludeUnready,
+                                                   getWalletPassLU, isCustomAddress,
+                                                   removeAccount, removeHistoryCache,
+                                                   removeTxMetas, removeWallet,
+                                                   setAccountMeta, setWalletMeta,
+                                                   setWalletPassLU, setWalletReady)
+import           Pos.Wallet.Web.Tracking          (CAccModifier (..), CachedCAccModifier,
+                                                   fixCachedAccModifierFor,
+                                                   fixingCachedAccModifier,
+                                                   sortedInsertions)
+import           Pos.Wallet.Web.Util              (decodeCTypeOrFail,
+                                                   getAccountAddrsOrThrow,
+                                                   getWalletAccountIds)
 
 ----------------------------------------------------------------------------
 -- Getters
@@ -153,7 +166,7 @@ getWallets = do
     logNotice "Ololo rollback!!!"
     printTipDifficulty
     blundsMaybeEmpty <- modifyBlunds <$>
-        loadBlundsFromTipByDepth @WalletSscType (fromIntegral numToRollback)
+        loadBlundsFromTipByDepth @WalletSscType (fromInteger numToRollback)
     logInfo $ sformat ("Loaded "%int%" blunds") (length blundsMaybeEmpty)
     blunds <- maybeThrow (RequestError "Ololo") $ _Wrapped nonEmpty blundsMaybeEmpty
     rollbackBlocksUnsafe (BypassSecurityCheck True) blunds
@@ -163,7 +176,7 @@ getWallets = do
   where
     modifyBlunds :: HasGtConfiguration => NewestFirst [] (Blund ssc) -> NewestFirst [] (Blund ssc)
     modifyBlunds =
-        over _NewestFirst (genericTake numToRollback . skip0thGenesis)
+        over _Wrapped (genericTake numToRollback . skip0thGenesis)
     skip0thGenesis = filter (not . is0thGenesis)
     is0thGenesis :: Blund ssc -> Bool
     is0thGenesis (Left genBlock, _)
