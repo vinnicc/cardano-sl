@@ -34,7 +34,7 @@ executable, branch's code should be compatible with cluster (take release branch
 You should change param `--peer` for all commands listed below (it is a host of any relay node). Also consider changing `--log-config`, `--logs-prefix`.
 Note `--system-start 0` is perfectly valid because we don't need actual value for `cardano-auxx`.
 
-Import secret keys: only 4 of 7 is needed. Cluster nodes all have equal stake and more than a half stake's votes is needed to make a decision about update (approve/dismiss).
+Import secret keys: only 4 of 7 is needed. Cluster nodes all have equal stake and more than a half stake's votes is needed to make a decision about update (approve/dismiss). Imported keys are stored locally (in `secret.key` which you can delete later).
 
 ```
 stack exec cardano-auxx -- --system-start 0 --log-config
