@@ -14,15 +14,32 @@ Now, again, step-by-step.
 
 Prerequisites
 =============
+
+0. For better understanding of update system, read cardanodocs:
+  * https://cardanodocs.com/cardano/update-mechanism/
+  * https://cardanodocs.com/technical/updater/
 1. Cluster nodes' keys. They are crucial to have since cluster nodes
    are the only nodes that have stake in the system so they are the
-   only nodes that can propose an update and vote for it.
+   only nodes that can propose an update and vote for it. It's enough
+   to have keys for majority of stake. In mainnet we have 7 core nodes
+   with equal stake, so 4 keys should be enough.
 2. Access to the S3 bucket
 3. Installers corresponding to software version we're pushing to cluster
-   - Those are two executables (exe for win, pkg for mac) which are to be provided by QA (after QA procedures passed)
-   - Advice: after providing installers, ask QA to confirm hashes are same, we don't want to ship users incorrect installers to users
+   - Those are two executables (exe for win, pkg for mac) which are to
+     be provided by QA (after QA procedures passed). They are
+     installers provided by our CI.
+   - Advice: after providing installers, ask QA to confirm hashes are
+     same, we don't want to ship users incorrect installers to users.
 4. Software version
-   - Single integer, denote application version as for installers provided
+   - Single integer, must be greater by 1 than the last confirmed
+     version. Initially `csl-daedalus` application has version 0. The
+     first update should have version 1, the next one 2, etc. If you
+     try to propose an update with version 3 while the last confirmed
+     one is 1, your update proposal won't be accepted by the nodes.
+   - Node knows its software version from `configuration.yaml` file,
+     `applicationVersion` field. When you propose an update to version
+     X, make sure that all attached installers use configuration with
+     `applicationVersion` set to `X`.
 
 Proposing the update
 ====================
@@ -85,9 +102,18 @@ Read file installer062win64.exe succesfuly, its hash: 01abf1c8b881c2f8ea4d1349a7
 Read file installer062macos64.pkg succesfuly, its hash: 3bc1084841fb99fff03ef92bc35eef9a80a20aeca688dfc1b50a4aa6dd6f7c73
 ```
 
-These hashes should be used as names when you will upload installers on S3 buckets.
+These hashes should be used to form URLs for installers on S3
+buckets. In this example `<update
+server>/01abf1c8b881c2f8ea4d1349a700f29d4088e68dc04b6bf4680ea7e14638373e`
+should respond with the contents of `installer062win64.exe` and
+`<update
+server>/3bc1084841fb99fff03ef92bc35eef9a80a20aeca688dfc1b50a4aa6dd6f7c73`
+should respond with the contents of `installer062macos64.pkg`.
 
-Note: 
+These hashes are Blake2b_256 hashes of CBOR-encoded contents of the files.
+TODO: let DevOps know how to compute these hashes.
+
+Note:
 ```
 Update proposal submitted, upId: 4c827d6fe03d4c3646ebbbc28d4e09c57690e1dcba54b9adc0050d3f76734cf6
 ```
@@ -121,4 +147,6 @@ In `vote N y 4c827d6fe03d4c3646ebbbc28d4e09c57690e1dcba54b9adc0050d3f76734cf6`:
 * `y` is for yes
 * `4c827d6fe03d4c3646ebbbc28d4e09c57690e1dcba54b9adc0050d3f76734cf6` is update proposal id or `upId`
 
-Successfull output ends in "submitted a vote". Votes will be sent to the network, software update will apply soon.
+Successfull output ends in "submitted a vote". Votes will be sent to
+the network, software update will apply soon (after `k` blocks, for
+more details read cardanodocs, links are in prerequisites).
