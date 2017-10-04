@@ -98,8 +98,12 @@ Uploading update files
 ======================
 
 Upload installers to S3 bucket:
-* `update-system-testing` if update is being performed on staging
-* `update-system` if update is being performed on live mainnet cluster
+* For staging:
+    * URL: https://s3.eu-central-1.amazonaws.com/update-system-testing/
+    * S3 Bucket: `update-system-testing`
+* For mainnet:
+    * URL: https://update.cardano-mainnet.iohk.io
+    * S3 Bucket: `update.cardano-mainnet.iohk.io` in mainnet AWS role
 
 Voting for proposal
 ===================
