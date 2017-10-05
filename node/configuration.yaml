@@ -14955,3 +14955,26 @@ testnet_staging_wallet_macos64: &testnet_staging_wallet_macos64
     <<: *mainnet_base_update
     applicationName: csl-daedalus
     systemTag: macos64
+
+##############################################################################
+##                                                                          ##
+##   Config for @fersel                                                     ##
+##                                                                          ##
+##############################################################################
+
+csm489:
+  <<: *testnet_public_full
+  core:
+    <<: *testnet_public_full_core
+    genesis:
+      <<: *testnet_public_full_genesis
+      spec:
+        <<: *testnet_public_full_spec
+        blockVersionData:
+          <<: *dev_core_genesis_spec_blockVersionData
+          slotDuration:      15000
+        protocolConstants:
+          <<: *mainnet_base_protocolConstants
+          protocolMagic: 228322 #patak protocolMagic
+          k: 6
+
