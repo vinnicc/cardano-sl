@@ -111,7 +111,14 @@ server>/3bc1084841fb99fff03ef92bc35eef9a80a20aeca688dfc1b50a4aa6dd6f7c73`
 should respond with the contents of `installer062macos64.pkg`.
 
 These hashes are Blake2b_256 hashes of CBOR-encoded contents of the files.
-TODO: let DevOps know how to compute these hashes.
+There is a simple command to calculate the hash of an installer:
+
+```
+stack exec cardano-auxx -- --system-start 0 --log-config
+  scripts/log-templates/log-config-qa.yaml
+  --logs-prefix "logs/auxx-update-1.0.1" --db-path auxx-update-1.0.1
+  cmd --commands "hash-installer <FILEPATH>"
+```
 
 Note:
 ```
