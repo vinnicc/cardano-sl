@@ -1,5 +1,5 @@
+{-# LANGUAGE Rank2Types   #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE Rank2Types #-}
 
 -- @jens: this document is inspired by https://github.com/input-output-hk/rscoin-haskell/blob/master/src/RSCoin/Explorer/Storage.hs
 module Pos.Wallet.Web.State.Storage
@@ -7,6 +7,7 @@ module Pos.Wallet.Web.State.Storage
          WalletStorage (..)
        , AddressLookupMode (..)
        , CustomAddressType (..)
+       , WalletBalances
        , WalletTip (..)
        , PtxMetaUpdate (..)
        , Query
@@ -48,6 +49,7 @@ module Pos.Wallet.Web.State.Storage
        , setWalletTxHistory
        , getWalletTxHistory
        , getWalletUtxo
+       , getWalletBalancesAndUtxo
        , setWalletUtxo
        , addOnlyNewTxMeta
        , setWalletTxMeta
@@ -80,13 +82,15 @@ import           Control.Monad.State.Class      (put)
 import           Data.Default                   (Default, def)
 import qualified Data.HashMap.Strict            as HM
 import qualified Data.Map                       as M
-import           Data.SafeCopy                  (Migrate (..), extension, base, deriveSafeCopySimple)
+import           Data.SafeCopy                  (Migrate (..), base, deriveSafeCopySimple,
+                                                 extension)
 import           Data.Time.Clock.POSIX          (POSIXTime)
 
 import           Pos.Client.Txp.History         (TxHistoryEntry, txHistoryListToMap)
 import           Pos.Core.Configuration         (HasConfiguration)
 import           Pos.Core.Types                 (SlotId, Timestamp)
-import           Pos.Txp                        (TxAux, TxId, Utxo)
+import           Pos.Txp                        (AddrCoinMap, TxAux, TxId, Utxo,
+                                                 utxoToAddressCoinMap)
 import           Pos.Types                      (HeaderHash)
 import           Pos.Util.BackupPhrase          (BackupPhrase)
 import           Pos.Wallet.Web.ClientTypes     (AccountId, Addr, CAccountMeta, CCoin,
@@ -139,6 +143,7 @@ makeLenses ''WalletInfo
 
 -- | Maps addresses to their first occurrence in the blockchain
 type CustomAddresses = HashMap (CId Addr) HeaderHash
+type WalletBalances = AddrCoinMap
 
 data WalletStorage = WalletStorage
     { _wsWalletInfos     :: !(HashMap (CId Wal) WalletInfo)
@@ -148,6 +153,9 @@ data WalletStorage = WalletStorage
     , _wsTxHistory       :: !(HashMap (CId Wal) (HashMap CTxId CTxMeta))
     , _wsHistoryCache    :: !(HashMap (CId Wal) (Map TxId TxHistoryEntry))
     , _wsUtxo            :: !Utxo
+    -- @_wsBalances@ depends on @_wsUtxo@,
+    -- it's forbidden to update @_wsBalances@ without @_wsUtxo@
+    , _wsBalances        :: !WalletBalances
     , _wsUsedAddresses   :: !CustomAddresses
     , _wsChangeAddresses :: !CustomAddresses
     }
@@ -166,6 +174,7 @@ instance Default WalletStorage where
         , _wsUsedAddresses   = mempty
         , _wsChangeAddresses = mempty
         , _wsUtxo            = mempty
+        , _wsBalances        = mempty
         }
 
 type Query a = forall m. (MonadReader WalletStorage m) => m a
@@ -263,8 +272,13 @@ getWalletTxHistory cWalId = toList <<$>> preview (wsTxHistory . ix cWalId)
 getWalletUtxo :: Query Utxo
 getWalletUtxo = view wsUtxo
 
+getWalletBalancesAndUtxo :: Query (WalletBalances, Utxo)
+getWalletBalancesAndUtxo = (,) <$> view wsBalances <*> view wsUtxo
+
 setWalletUtxo :: Utxo -> Update ()
-setWalletUtxo utxo = wsUtxo .= utxo
+setWalletUtxo utxo = do
+    wsUtxo .= utxo
+    wsBalances .= utxoToAddressCoinMap utxo
 
 getUpdates :: Query [CUpdateInfo]
 getUpdates = view wsReadyUpdates
@@ -509,7 +523,6 @@ deriveSafeCopySimple 0 'base ''AccountInfo
 deriveSafeCopySimple 0 'base ''WalletTip
 deriveSafeCopySimple 0 'base ''WalletInfo
 
-
 -- Legacy versions, for migrations
 
 data WalletStorage_v0 = WalletStorage_v0
@@ -537,6 +550,7 @@ instance Migrate WalletStorage where
         , _wsTxHistory       = _v0_wsTxHistory
         , _wsHistoryCache    = HM.map txHistoryListToMap _v0_wsHistoryCache
         , _wsUtxo            = _v0_wsUtxo
+        , _wsBalances        = utxoToAddressCoinMap _v0_wsUtxo
         , _wsUsedAddresses   = _v0_wsUsedAddresses
         , _wsChangeAddresses = _v0_wsChangeAddresses
         }
