@@ -66,7 +66,7 @@ Propose an update:
 stack exec cardano-auxx -- --system-start 0 --log-config
   scripts/log-templates/log-config-qa.yaml
   --logs-prefix "logs/auxx-update-1.0.1" --db-path auxx-update-1.0.1
-  --peer <relay dns name>:3000 cmd --commands "propose-update 0 0.0.0 0 20 2000000 csl-daedalus:1 win64 daedalus1.exe none macos daedalus1c.pkg none"
+  --peer <relay dns name>:3000 cmd --commands "propose-update 0 0.0.0 0 20 2000000 csl-daedalus:1 win64 daedalus1.exe none macos64 daedalus1c.pkg none"
 ```
 
 Syntax and semantics of `propose-update` command:
