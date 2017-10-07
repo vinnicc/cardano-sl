@@ -44,52 +44,81 @@ Prerequisites
 Proposing the update
 ====================
 
-Ensure your keys are somewhere around and named, say, `nodeX.key`,
-where `X ∈ [1..7]`. Procedure is done using `cardano-auxx`
-executable, branch's code should be compatible with cluster (take release branch, e.g. `cardano-sl-1.0`).
+Preparations
+------------
 
-You should change param `--peer` for all commands listed below (it is a host of any relay node). Also consider changing `--log-config`, `--logs-prefix`.
-Note `--system-start 0` is perfectly valid because we don't need actual value for `cardano-auxx`.
+You need to build packages `cardano-sl-tools` and `cardano-sl-auxx`. Branch's code should be compatible with cluster (take release branch, e.g. `cardano-sl-1.0`).
 
-Import secret keys: only 4 of 7 is needed. Cluster nodes all have equal stake and more than a half stake's votes is needed to make a decision about update (approve/dismiss). Imported keys are stored locally (in `secret.key` which you can delete later).
+Ensure your keys are somewhere around and named, say, `keyX.sk`, where `X ∈ [0..6]`.
 
-```
-stack exec cardano-auxx -- --system-start 0 --log-config
-  scripts/log-templates/log-config-qa.yaml
-  --logs-prefix "logs/auxx-update-1.0.1" --db-path auxx-update-1.0.1
-  --peer <relay dns name>:3000 cmd --commands "add-key node1.key, add-key node2.key, add-key node3.key, add-key node4.key, listaddr"
-```
+Before running all commands below, set command-line options appropriately. You need to change `CONFIG_KEY`, set `RELAY_PEER` (a host of any relay node) and possibly setting `--log-config`, `--logs-prefix` to real paths. Note that `--system-start 0` is perfectly valid and you don't need to change it.
 
-Propose an update:
+The following variables will be used in all following commands:
 
 ```
-stack exec cardano-auxx -- --system-start 0 --log-config
-  scripts/log-templates/log-config-qa.yaml
-  --logs-prefix "logs/auxx-update-1.0.1" --db-path auxx-update-1.0.1
-  --peer <relay dns name>:3000 cmd --commands "propose-update 0 0.0.0 0 20 2000000 csl-daedalus:1 win64 daedalus1.exe none macos64 daedalus1c.pkg none"
+CONFIG_KEY=mainnet_dryrun_full  # Should be the same as on the running nodes!
+RELAY_PEER=<IP>:3000            # A host of any relay node.
+
+COMMONOPTS="--system-start 0 --configuration-file ../cardano-sl/node/configuration.yaml --configuration-key ${CONFIG_KEY}"
+
+AUXXOPTS="--log-config ../cardano-sl/scripts/log-templates/log-config-qa.yaml --logs-prefix logs/aux-update.1.0.1 --db-path aux-update-1.0.1 --peer ${RELAY_PEER}"
 ```
 
-Syntax and semantics of `propose-update` command:
+Rearranging the keys
+--------------------
+
+Apply `cardano-keygen rearrange` to the keys to make them usable for proposing an update and voting:
 
 ```
-propose-update <N> <block ver> <script ver> <slot duration> <max block size> <software ver> <propose_file>?
+for idx in {0..6}; do
+  stack exec -- cardano-keygen $COMMONOPTS rearrange --mask key${idx}.sk
+done
 ```
 
-* First argument is index of imported key you're sending update
-from. Step "import secret keys" has `listaddr` command in the end. Check it's output -- any cluster node will
-do (`0` states for first key imported).
-* Parameters 2-5 are block version data parameters -- leave them as
-they are provided in the cli example.
-* `csl-daedalus:1` is software version description, you should substitute `1` (version) with the integer provided along with installers (see *Prerequisites* section, *4.* item)
-* End of command: list of triples -- update installers. Provide the path to installers
-without any slashes (installers should be in the same dir as auxx is
-launched in). First tuple element is platform, second is path, `none` stands for binary diff (this feature is not used for now).
+Importing the keys
+------------------
 
-That's it. Successfull command output looks like this:
+Import secret keys: only 4 of 7 is needed (extra votes will be ignored). Cluster nodes all have equal stake and more than a half stake's votes is needed to make a decision about update (approve/dismiss). Imported keys are stored locally (in `secret.key` which you can delete after completing this guide).
+
+```
+stack exec -- cardano-auxx $COMMONOPTS $AUXXOPTS cmd --commands "add-key key0.sk, add-key key1.sk, add-key key2.sk, add-key key3.sk, listaddr"
+```
+
+If the `listaddr` command hasn't printed the addresses belonging to the four keys, you did something wrong. Maybe you forgot to rearrange the keys?
+
+Sending an update proposal
+--------------------------
+
+Let's say that you want to push an update with the following Windows/macOS installers (note: it's important that the installers might be in current directory, i.e. there must be no slashes):
+
+```
+WIN64_INSTALLER=daedalus-win64-1.0.3350.0-installer.exe
+DARWIN_INSTALLER=Daedalus-installer-1.0-rc.3202.pkg
+```
+
+To create and send an update proposal, you need to run this command:
+
+```
+stack exec -- cardano-auxx $COMMONOPTS $AUXXOPTS cmd --commands "propose-update 0 0.0.0 0 20 2000000 csl-daedalus:1 win64 ${WIN64_INSTALLER} none macos64 ${DARWIN_INSTALLER} none"
+```
+
+Let's break down the invocation of `propose-update`. First come arguments that you almost certainly won't need to modify:
+
+* `0` is the index of key that will be used to sign the update.
+* `0.0.0` is block version to be used after the update. Currently it's `0.0.0` as well and so the update won't change the block version.
+* `0` is new script version. Again, it's the same as the current one.
+* `20` is new slot duration (in seconds). Unchanged.
+* `2000000` is new maximum block size (in bytes). Unchanged.
+
+The next argument (`csl-daedalus:1`) is software version description. You should substitute `1` (version) with the integer provided along with installers (see *Prerequisites* section, *4.* item)
+
+Next follow an arbitrary number of _triples_ (two in our case, one for Windows and one for macOS). Each triple is `<system tag> <installer filename> none`. Once again, those are filenames in the current dir, not arbitrary paths. `none` stands for binary diff (this feature is not used for now).
+
+Successfull command output looks like this:
 
 ```
 [smart-wallet:DEBUG] [2017-09-21 15:13:24 MSK] Proposing update...
-Read file installer062win64.exe succesfuly, its hash: 01abf1c8b881c2f8ea4d1349a700f29d4088e68dc04b6bf4680ea7e14638373e
+Read file daedalus-win64-1.0.3350.0-installer.exe succesfuly, its hash: 01abf1c8b881c2f8ea4d1349a700f29d4088e68dc04b6bf4680ea7e14638373e
 Read file installer062macos64.pkg succesfuly, its hash: 3bc1084841fb99fff03ef92bc35eef9a80a20aeca688dfc1b50a4aa6dd6f7c73
 [smart-wallet:INFO] [2017-09-21 15:13:25 MSK] Announcing proposal with id 4c827d6fe03d4c3646ebbbc28d4e09c57690e1dcba54b9adc0050d3f76734cf6
 Update proposal submitted, upId: 4c827d6fe03d4c3646ebbbc28d4e09c57690e1dcba54b9adc0050d3f76734cf6
@@ -98,34 +127,32 @@ Update proposal submitted, upId: 4c827d6fe03d4c3646ebbbc28d4e09c57690e1dcba54b9a
 Note:
 
 ```
-Read file installer062win64.exe succesfuly, its hash: 01abf1c8b881c2f8ea4d1349a700f29d4088e68dc04b6bf4680ea7e14638373e
-Read file installer062macos64.pkg succesfuly, its hash: 3bc1084841fb99fff03ef92bc35eef9a80a20aeca688dfc1b50a4aa6dd6f7c73
+Read file daedalus-win64-1.0.3350.0-installer.exe succesfuly, its hash: 01abf1c8b881c2f8ea4d1349a700f29d4088e68dc04b6bf4680ea7e14638373e
+Read file Daedalus-installer-1.0-rc.3202.pkg succesfuly, its hash: 3bc1084841fb99fff03ef92bc35eef9a80a20aeca688dfc1b50a4aa6dd6f7c73
 ```
 
 These hashes should be used to form URLs for installers on S3
-buckets. In this example `<update
+buckets. In this example the URL `<update
 server>/01abf1c8b881c2f8ea4d1349a700f29d4088e68dc04b6bf4680ea7e14638373e`
-should respond with the contents of `installer062win64.exe` and
+should respond with the contents of `daedalus-win64-1.0.3350.0-installer.exe` and the URL
 `<update
 server>/3bc1084841fb99fff03ef92bc35eef9a80a20aeca688dfc1b50a4aa6dd6f7c73`
-should respond with the contents of `installer062macos64.pkg`.
+should respond with the contents of `Daedalus-installer-1.0-rc.3202.pkg`.
 
 These hashes are Blake2b_256 hashes of CBOR-encoded contents of the files.
 There is a simple command to calculate the hash of an installer:
 
 ```
-stack exec cardano-auxx -- --system-start 0 --log-config
-  scripts/log-templates/log-config-qa.yaml
-  --logs-prefix "logs/auxx-update-1.0.1" --db-path auxx-update-1.0.1
-  cmd --commands "hash-installer <FILEPATH>"
+stack exec -- cardano-auxx $COMMONOPTS $AUXXOPTS cmd --commands "hash-installer <FILEPATH>"
 ```
 
 Note:
+
 ```
 Update proposal submitted, upId: 4c827d6fe03d4c3646ebbbc28d4e09c57690e1dcba54b9adc0050d3f76734cf6
 ```
 
-Value `upId` is used on one of next steps, when we'll vote for update.
+Value `upId` is used on one of next steps, when we'll vote for update. You may also look the first six characters of the hash on Papertrail to see whether the proposal was accepted by nodes or not.
 
 Uploading update files
 ======================
@@ -141,19 +168,20 @@ Upload installers to S3 bucket:
 Voting for proposal
 ===================
 
+Variables:
+
 ```
-stack exec cardano-auxx -- --system-start 0 --log-config
-  scripts/log-templates/log-config-qa.yaml
-  --logs-prefix "logs/auxx-update-1.0.1" --db-path auxx-update-1.0.1
-  --peer <relay dns name>:3000 cmd --commands "vote 1 y 4c827d6fe03d4c3646ebbbc28d4e09c57690e1dcba54b9adc0050d3f76734cf6,vote 2 y 4c827d6fe03d4c3646ebbbc28d4e09c57690e1dcba54b9adc0050d3f76734cf6,vote 3 y 4c827d6fe03d4c3646ebbbc28d4e09c57690e1dcba54b9adc0050d3f76734cf6,vote 4 y 4c827d6fe03d4c3646ebbbc28d4e09c57690e1dcba54b9adc0050d3f76734cf6"
+PROPOSAL_ID=4a57dd56563149eb4429024e51709807b88d6306b81eb2f9aa5fa303bc7bbf44
 ```
 
-In `vote N y 4c827d6fe03d4c3646ebbbc28d4e09c57690e1dcba54b9adc0050d3f76734cf6`:
+Command:
 
-* `N` should be index of key (from `listadr`)
-* `y` is for yes
-* `4c827d6fe03d4c3646ebbbc28d4e09c57690e1dcba54b9adc0050d3f76734cf6` is update proposal id or `upId`
+```
+for idx in {1..3}; do
+  stack exec -- cardano-auxx $COMMONOPTS $AUXXOPTS cmd --commands "vote ${idx} y ${PROPOSAL_ID}"
+done
+```
 
-Successfull output ends in "submitted a vote". Votes will be sent to
-the network, software update will apply soon (after `k` blocks, for
-more details read cardanodocs, links are in prerequisites).
+`y` stands for “vote ‘yes’”. Successfull output ends in "submitted a vote".
+Votes will be sent to the network, software update will apply soon (after
+`k` blocks, for more details read cardanodocs, links are in prerequisites).
