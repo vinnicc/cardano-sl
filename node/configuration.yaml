@@ -14896,11 +14896,11 @@ testnet_public_full: &testnet_public_full
         initializer:
           testnetInitializer:
             testBalance:
-              poors:        24000
+              poors:        2400
               richmen:      4
               richmenShare: 0.94
               totalBalance: 13887504355000000
-              useHDAddresses: False
+              useHDAddresses: True
             fakeAvvmBalance:
               count: 100
               oneBalance: 15000000
