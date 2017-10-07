@@ -14896,7 +14896,7 @@ testnet_public_full: &testnet_public_full
         initializer:
           testnetInitializer:
             testBalance:
-              poors:        2400
+              poors:        240
               richmen:      4
               richmenShare: 0.94
               totalBalance: 13887504355000000
