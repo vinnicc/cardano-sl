@@ -13,7 +13,6 @@ module Pos.Launcher.Scenario
 import           Universum
 
 import           Control.Lens             (views)
-import           Data.Time.Units          (Second)
 import           Ether.Internal           (HasLens (..))
 import           Formatting               (build, int, sformat, shown, (%))
 import           Mockable                 (fork)
@@ -24,18 +23,14 @@ import           System.Wlog              (WithLogger, getLoggerName, logError, 
 
 import           Pos.Communication        (ActionSpec (..), OutSpecs, WorkerSpec,
                                            wrapActionSpec)
-import           Pos.Context              (getOurPublicKey, ncNetworkConfig)
+import           Pos.Context              (getOurPublicKey)
 import           Pos.Core                 (GenesisData (gdBootStakeholders),
                                            GenesisWStakeholders (..), addressHash,
                                            bootDustThreshold, gdFtsSeed, genesisData)
 import qualified Pos.DB.DB                as DB
-import           Pos.DHT.Real             (KademliaDHTInstance (..),
-                                           kademliaJoinNetworkNoThrow,
-                                           kademliaJoinNetworkRetry)
 import qualified Pos.GState               as GS
 import           Pos.Launcher.Resource    (NodeResources (..))
 import           Pos.Lrc.DB               as LrcDB
-import           Pos.Network.Types        (NetworkConfig (..), topologyRunKademlia)
 import           Pos.Reporting            (reportError)
 import           Pos.Shutdown             (waitForWorkers)
 import           Pos.Slotting             (waitSystemStart)
@@ -78,18 +73,19 @@ runNode' NodeResources {..} workers' plugins' = ActionSpec $ \vI sendActions -> 
     logInfoS $ sformat ("My public key is: "%build%", pk hash: "%build)
         pk pkHash
 
-    -- Synchronously join the Kademlia network before doing any more.
-    --
-    -- See 'topologyRunKademlia' documentation: the second component is 'True'
-    -- iff it's essential that at least one of the initial peers is contacted.
-    -- Otherwise, it's OK to not find any initial peers and the program can
-    -- continue.
-    let retryInterval :: Second
-        retryInterval = 5
-    case topologyRunKademlia (ncTopology (ncNetworkConfig nrContext)) of
-        Just (kInst, True)  -> kademliaJoinNetworkRetry kInst (kdiInitialPeers kInst) retryInterval
-        Just (kInst, False) -> kademliaJoinNetworkNoThrow kInst (kdiInitialPeers kInst)
-        Nothing             -> return ()
+-- Does it make sense to use this code at all? @volhovm @gromak
+--    -- Synchronously join the Kademlia network before doing any more.
+--    --
+--    -- See 'topologyRunKademlia' documentation: the second component is 'True'
+--    -- iff it's essential that at least one of the initial peers is contacted.
+--    -- Otherwise, it's OK to not find any initial peers and the program can
+--    -- continue.
+--    let retryInterval :: Second
+--        retryInterval = 5
+--    case topologyRunKademlia (ncTopology (ncNetworkConfig nrContext)) of
+--        Just (kInst, True)  -> kademliaJoinNetworkRetry kInst (kdiInitialPeers kInst) retryInterval
+--        Just (kInst, False) -> kademliaJoinNetworkNoThrow kInst (kdiInitialPeers kInst)
+--        Nothing             -> return ()
 
     let genesisStakeholders = gdBootStakeholders genesisData
     logInfo $ sformat
